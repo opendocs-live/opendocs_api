@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 # Example for integrating 3botlogin into python
 
 from flask import Flask, redirect, request, abort, send_from_directory
@@ -33,6 +34,8 @@ pkb64 = sk.public_key.encode(
 filebrowserUrl = os.environ['FILEBROWSERURL']
 filebrowserFolder = os.environ['FILEBROWSERROOT']
 filebrowserSecretKey = os.environ['FILEBROWSERKEY']
+login_host = os.environ['LOGINHOST']
+my_host = os.environ['HOST']
 
 filebrowserJwt = jwt.encode({
     'user': {
@@ -96,9 +99,9 @@ def randomString(stringLength=10):
     return ''.join(random.choice(letters) for i in range(stringLength))
 
 
-@app.route('/users/<user>')
+@app.route('/opendocs/users/<user>')
 def getUser(user):
-    usersEndpoint = "{}api/users".format(filebrowserUrl)
+    usersEndpoint = "{}/api/users".format(filebrowserUrl)
     response = requests.get(url=usersEndpoint, headers=headers)
     print(response.content)
     users = json.loads(response.content.decode("utf-8"))
@@ -108,9 +111,9 @@ def getUser(user):
     return 0
 
 
-@app.route('/createuser')
+@app.route('/opendocs/createuser')
 def createUser(doublename):
-    usersEndpoint = "{}api/users".format(filebrowserUrl)
+    usersEndpoint = "{}/api/users".format(filebrowserUrl)
     doublename = "jdelrue.3bot"
 
     createUser = {
@@ -158,21 +161,19 @@ def createUser(doublename):
     return r.status_code == 201
 
 
-@app.route('/')
-def hello():
+@app.route('/opendocs/')
+def login():
     state = randomString()
-    res = flask.make_response(redirect(
-        'https://login.threefold.me/?state={}&scope=user:email&appid=pythoniseasy&publickey={}&redirecturl=http://localhost:8082/callback'.format(state, urllib.parse.quote_plus(pkb64))))
+    res = flask.make_response(redirect('{}/?state={}&scope=user:email&appid=Opendocs&publickey={}&redirecturl={}/opendocs/callback'.format(login_host, state, urllib.parse.quote_plus(pkb64), my_host)))
     res.set_cookie("state", value=state)
     return res
 
 
-@app.route('/callback')
+@app.route('/opendocs/callback')
 def callback():
     signedhash = request.args.get('signedhash')
     username = request.args.get('username')
-    userResponse = urlopen(
-        "https://login.threefold.me/api/users/{}".format(username))
+    userResponse = urlopen("{}/api/users/{}".format(login_host,username))
 
     username = request.args.get('username')
     data = json.loads(userResponse.read())
@@ -194,11 +195,11 @@ def callback():
         print("creating {}/{}".format(filebrowserFolder, username))
         os.mkdir("{}/{}".format(filebrowserFolder, username))
 
-    res = flask.make_response(redirect('{}login?auth={}'.format(filebrowserUrl,getJwtForUser(username))))
+    res = flask.make_response(redirect('{}/login?auth={}'.format(my_host,getJwtForUser(username))))
     return res
 
-# @app.route('/files/<filename>')
-@app.route('/uploads/<path:filename>')
+# @app.route('/opendocs/files/<filename>')
+@app.route('/opendocs/files/<path:filename>')
 def getfile(filename):
     print(filename)
     print("/home/code/projects/{}".format(filename))
@@ -208,7 +209,7 @@ def getfile(filename):
 # https://kite.com/python/docs/flask.send_from_directory
 
 
-@app.route('/docs')
+@app.route('/opendocs/docs')
 def opendocs():
     f = open("docs.html", "r")
     contents = f.read()
@@ -216,5 +217,5 @@ def opendocs():
 
 
 if __name__ == '__main__':
-    app.run("0.0.0.0", 8082)
+    app.run("0.0.0.0", 9001)
 
