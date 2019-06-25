@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # Example for integrating 3botlogin into python
 
-from flask import Flask, redirect, request, abort, send_from_directory
+from flask import Flask, redirect, request, abort, send_from_directory, session
 import flask
 import nacl
 import nacl
@@ -36,6 +36,7 @@ filebrowserFolder = os.environ['FILEBROWSERROOT']
 filebrowserSecretKey = os.environ['FILEBROWSERKEY']
 login_host = os.environ['LOGINHOST']
 my_host = os.environ['HOST']
+secret_key = os.environ['SECRETKEY']
 
 filebrowserJwt = jwt.encode({
     'user': {
@@ -161,12 +162,6 @@ def createUser(doublename):
     return r.status_code == 201
 
 
-@app.route('/opendocs/')
-def login():
-    state = randomString()
-    res = flask.make_response(redirect('{}/?state={}&scope=user:email&appid=Opendocs&publickey={}&redirecturl={}/opendocs/callback'.format(login_host, state, urllib.parse.quote_plus(pkb64), my_host)))
-    res.set_cookie("state", value=state)
-    return res
 
 
 @app.route('/opendocs/callback')
@@ -193,29 +188,41 @@ def callback():
         print("!!create user!!")
         createUser(username)
         print("creating {}/{}".format(filebrowserFolder, username))
-        os.mkdir("{}/{}".format(filebrowserFolder, username))
+        create_dir = "{}/{}".format(filebrowserFolder, username)
+
+        if not os.path.exists(create_dir):
+            os.mkdir(create_dir)
 
     res = flask.make_response(redirect('{}/login?auth={}'.format(my_host,getJwtForUser(username))))
+    session['username'] = username
     return res
 
-# @app.route('/opendocs/files/<filename>')
-@app.route('/opendocs/files/<path:filename>')
-def getfile(filename):
+#@app.route('/opendocs/files/<path:filename>')
+@app.route('/opendocs/users/<user>/files/<filename>')
+def getfile(user, filename):
     print(filename)
-    print("/home/code/projects/{}".format(filename))
+    path = "{}/{}".format(filebrowserFolder,user)
 
-    return send_from_directory("/home/code/projects", filename)
+    return send_from_directory(path, filename)
 
-# https://kite.com/python/docs/flask.send_from_directory
 
+@app.route('/opendocs/')
+def login():
+    state = randomString()
+    res = flask.make_response(redirect('{}/?state={}&scope=user:email&appid=Opendocs&publickey={}&redirecturl={}/opendocs/callback'.format(login_host, state, urllib.parse.quote_plus(pkb64), my_host)))
+    res.set_cookie("state", value=state)
+    return res
 
 @app.route('/opendocs/docs')
 def opendocs():
-    f = open("docs.html", "r")
+    f = open("/dist/docs.html", "r")
     contents = f.read()
     return contents
 
 
 if __name__ == '__main__':
+
+    app.secret_key = secret_key
+    app.config['SESSION_TYPE'] = 'filesystem'
     app.run("0.0.0.0", 9001)
 
